@@ -15,7 +15,7 @@ export const getProjects = async (req, res) => {
 
 // @desc    Add a new Project (ADMIN ONLY)
 // @route   POST /api/v1/projects
-export const addProject = async (req, res) => { // <--- This function MUST be exported
+export const createProject = async (req, res) => {
     try {
         const project = await Project.create(req.body);
         res.status(201).json({ success: true, data: project });
@@ -60,3 +60,6 @@ export const deleteProject = async (req, res) => { // <--- This function MUST be
         res.status(500).json({ success: false, error: 'Server Error' });
     }
 };
+
+// Backward-compatible alias used by older imports.
+export const addProject = createProject;

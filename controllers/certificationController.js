@@ -1,62 +1,53 @@
-// controllers/certificationController.js
+import Certification from "../models/certification.js";
 
-import Certification from '../models/certification.js';
-
-// @desc    Get all Certifications (PUBLIC)
-// @route   GET /api/v1/certifications
 export const getCertifications = async (req, res) => {
     try {
-        const certifications = await Certification.find().sort({ issueDate: -1 });
+        const certifications = await Certification.find().sort({ createdAt: -1 });
         res.status(200).json({ success: true, count: certifications.length, data: certifications });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, msg: "Failed to fetch certifications" });
     }
 };
 
-// @desc    Add a new Certification (ADMIN ONLY)
-// @route   POST /api/v1/certifications
-export const addCertification = async (req, res) => {
+export const createCertification = async (req, res) => {
     try {
-        const certification = await Certification.create(req.body);
-        res.status(201).json({ success: true, data: certification });
-    } catch (error) {
-        if (error.name === 'ValidationError') {
-            const messages = Object.values(error.errors).map(val => val.message);
-            return res.status(400).json({ success: false, error: messages });
-        }
-        res.status(500).json({ success: false, error: `Could not create certification. ${error.message}` });
-    }
-};
+        const {
+            name,
+            issuer,
+            year,
+            credentialUrl,
+            url,        // from frontend
+            imageUrl,   // optional
+        } = req.body;
 
-// @desc    Update a Certification by ID (ADMIN ONLY)
-// @route   PUT /api/v1/certifications/:id
-export const updateCertification = async (req, res) => {
-    try {
-        const certification = await Certification.findByIdAndUpdate(req.params.id, req.body, {
-            new: true, 
-            runValidators: true 
+        // ✅ map frontend → backend
+        const cert = await Certification.create({
+            name,
+            issuer,
+            year,
+            credentialUrl: credentialUrl || url,
+            imageUrl: imageUrl || null,
         });
 
-        if (!certification) {
-            return res.status(404).json({ success: false, error: 'Certification not found' });
-        }
-        res.status(200).json({ success: true, data: certification });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+        res.status(201).json({ success: true, data: cert });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, msg: "Failed to create certification" });
     }
 };
 
-// @desc    Delete a Certification by ID (ADMIN ONLY)
-// @route   DELETE /api/v1/certifications/:id
 export const deleteCertification = async (req, res) => {
     try {
-        const certification = await Certification.findByIdAndDelete(req.params.id);
+        const cert = await Certification.findByIdAndDelete(req.params.id);
 
-        if (!certification) {
-            return res.status(404).json({ success: false, error: 'Certification not found' });
+        if (!cert) {
+            return res.status(404).json({ success: false, msg: "Certification not found" });
         }
+
         res.status(200).json({ success: true, data: {} });
-    } catch (error) {
-        res.status(500).json({ success: false, error: 'Server Error' });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ success: false, msg: "Failed to delete certification" });
     }
 };
