@@ -5,7 +5,15 @@ export const sendMessage = async (req, res) => {
   try {
     console.log("🔥 NEW CONTROLLER RUNNING");
 
-    const resend = new Resend(process.env.RESEND_API_KEY); // ✅ moved here
+    if (!process.env.RESEND_API_KEY) {
+      console.error("RESEND_API_KEY is missing. Unable to send contact email.");
+      return res.status(500).json({
+        success: false,
+        msg: "Email service is not configured"
+      });
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
 
     const { name, email, subject, message } = req.body;
     const contactReceiver = process.env.MAIL_TO;
@@ -41,7 +49,7 @@ export const sendMessage = async (req, res) => {
     `;
 
     const response = await resend.emails.send({
-      from: "Deepak Portfolio <hello@deepak.dev>",
+      from: "onboarding@resend.dev",
       to: contactReceiver,
       subject: resolvedSubject,
       html,
