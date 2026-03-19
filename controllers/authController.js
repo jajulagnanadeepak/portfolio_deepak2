@@ -1,9 +1,16 @@
 import jwt from "jsonwebtoken";
+import { Resend } from "resend";
 import Admin from "../models/admin.js";
 
-const emailServicePlaceholder = {
-  success: false,
-  message: "Email service not configured yet",
+const getResendClient = () => {
+  const apiKey = process.env.RESEND_API_KEY;
+
+  if (!apiKey) {
+    console.error("RESEND_API_KEY is missing. Unable to send OTP email.");
+    return null;
+  }
+
+  return new Resend(apiKey);
 };
 
 // =========================
@@ -35,10 +42,32 @@ export const requestOtp = async (req, res) => {
 
     console.log("OTP GENERATED:", otp);
 
-    return res.status(503).json({
-      success: false,
-      msg: "OTP mail service not configured yet",
-      ...emailServicePlaceholder,
+    const resend = getResendClient();
+    if (!resend) {
+      return res.status(500).json({
+        success: false,
+        msg: "Email service is not configured"
+      });
+    }
+
+    const { error } = await resend.emails.send({
+      from: "onboarding@resend.dev",
+      to: normalizedEmail,
+      subject: "Your OTP Code",
+      html: `<h2>Your OTP is: ${otp}</h2>`
+    });
+
+    if (error) {
+      console.error("OTP email error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Failed to send OTP"
+      });
+    }
+
+    return res.json({
+      success: true,
+      msg: "OTP sent successfully"
     });
 
   } catch (err) {
