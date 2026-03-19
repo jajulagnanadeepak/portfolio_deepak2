@@ -11,6 +11,7 @@ import contactRoutes from "./routes/contactRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 
 dotenv.config();
+console.log("API KEY:", process.env.RESEND_API_KEY);
 
 const app = express();
 
@@ -60,7 +61,7 @@ mongoose
    API ROUTES
 ===================================================== */
 app.use("/", authRoutes);
-app.use("/", contactRoutes);
+app.use("/api", contactRoutes);
 app.use("/api/v1/projects", projectRoutes);
 app.use("/api/v1/certifications", certificationRoutes);
 
