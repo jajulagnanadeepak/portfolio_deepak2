@@ -68,15 +68,22 @@ const transporter = nodemailer.createTransport({
   secure: SMTP_SECURE,
   requireTLS: SMTP_REQUIRE_TLS,
   family: SMTP_FAMILY,
-  connectionTimeout: 10000,
-  greetingTimeout: 10000,
-  socketTimeout: 20000,
+  connectionTimeout: 15000,
+  greetingTimeout: 15000,
+  socketTimeout: 25000,
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS,
   },
   tls: {
     minVersion: "TLSv1.2",
+    rejectUnauthorized: false,
+  },
+  pool: {
+    maxConnections: 1,
+    maxMessages: 5,
+    rateDelta: 2000,
+    rateLimit: 5,
   },
 });
 
