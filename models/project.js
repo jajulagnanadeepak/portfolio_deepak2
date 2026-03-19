@@ -1,36 +1,24 @@
-// models/Project.js
-
 import mongoose from 'mongoose';
 
 const ProjectSchema = new mongoose.Schema({
     title: {
         type: String,
-        required: [true, 'Project title is required.'],
+        required: true,
         trim: true,
         unique: true
     },
     description: {
         type: String,
-        required: [true, 'Project description is required.']
+        required: true
     },
-    // Technologies is stored as an array of strings
-    technologies: { 
-        type: [String], 
-        required: [true, 'Technology stack is required.']
+    technologies: {
+        type: [String],
+        required: true
     },
-    liveUrl: {
-        type: String,
-        trim: true
-    },
-    githubUrl: {
-        type: String,
-        trim: true
-    },
-    imageUrl: {
-        type: String,
-        trim: true
-    },
-    displayOrder: { 
+    liveUrl: String,
+    githubUrl: String,
+    imageUrl: String,
+    displayOrder: {
         type: Number,
         default: 0
     }

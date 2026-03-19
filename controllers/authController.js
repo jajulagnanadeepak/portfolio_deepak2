@@ -1,21 +1,20 @@
 import jwt from "jsonwebtoken";
-
+import { Resend } from "resend";
 import Admin from "../models/admin.js";
 
-const emailServicePlaceholder = {
-  success: false,
-  message: "Email service not configured yet",
-};
-
+// =========================
+// REQUEST OTP
+// =========================
 export const requestOtp = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!email?.trim()) {
+    if (!email) {
       return res.status(400).json({ success: false, msg: "Email required" });
     }
 
     const normalizedEmail = email.trim().toLowerCase();
+
     const otp = String(Math.floor(100000 + Math.random() * 900000));
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
 
@@ -30,25 +29,51 @@ export const requestOtp = async (req, res) => {
 
     await admin.save();
 
-    console.log("SAVED OTP:", admin);
+    console.log("OTP GENERATED:", otp);
 
-    return res.status(503).json({
-      success: false,
-      msg: "OTP mail service not configured yet",
-      ...emailServicePlaceholder,
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const { error } = await resend.emails.send({
+      from: "onboarding@resend.dev",
+      to: normalizedEmail,
+      subject: "Your Admin OTP",
+      html: `<h2>Your OTP is: ${otp}</h2>`
     });
+
+    if (error) {
+      console.error("Email error:", error);
+      return res.status(500).json({
+        success: false,
+        msg: "Failed to send OTP"
+      });
+    }
+
+    return res.json({
+      success: true,
+      msg: "OTP sent successfully"
+    });
+
   } catch (err) {
-    console.error("REQUEST OTP ERROR:", err);
-    return res.status(500).json({ success: false, msg: "OTP failed" });
+    console.error("OTP ERROR:", err);
+    return res.status(500).json({
+      success: false,
+      msg: "Server error"
+    });
   }
 };
 
+// =========================
+// VERIFY OTP
+// =========================
 export const verifyOtp = async (req, res) => {
   try {
     let { email, otp } = req.body;
 
     if (!email || !otp) {
-      return res.status(400).json({ success: false, msg: "Email & OTP required" });
+      return res.status(400).json({
+        success: false,
+        msg: "Email & OTP required"
+      });
     }
 
     email = email.trim().toLowerCase();
@@ -56,45 +81,56 @@ export const verifyOtp = async (req, res) => {
 
     const admin = await Admin.findOne({ email });
 
-    console.log("INPUT EMAIL:", email);
-    console.log("INPUT OTP:", otp);
-    console.log("DB ADMIN:", admin);
-
     if (!admin) {
-      return res.status(400).json({ success: false, msg: "Admin not found" });
+      return res.status(400).json({
+        success: false,
+        msg: "Admin not found"
+      });
     }
 
     if (!admin.otp || !admin.otpExpiresAt) {
-      return res.status(400).json({ success: false, msg: "No OTP requested" });
+      return res.status(400).json({
+        success: false,
+        msg: "No OTP requested"
+      });
     }
 
     if (new Date() > admin.otpExpiresAt) {
-      return res.status(400).json({ success: false, msg: "OTP expired" });
+      return res.status(400).json({
+        success: false,
+        msg: "OTP expired"
+      });
     }
 
     if (admin.otp !== otp) {
-      return res.status(400).json({ success: false, msg: "Invalid OTP" });
+      return res.status(400).json({
+        success: false,
+        msg: "Invalid OTP"
+      });
     }
 
+    // clear OTP
     admin.otp = null;
     admin.otpExpiresAt = null;
     await admin.save();
 
-    console.log("JWT_SECRET =", process.env.JWT_SECRET);
-    console.log("JWT_EXPIRES_IN =", process.env.JWT_EXPIRES_IN);
     const token = jwt.sign(
       { adminId: admin._id, email: admin.email },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: "1d" }
     );
 
     return res.json({
       success: true,
       msg: "Login successful",
-      token,
+      token
     });
+
   } catch (err) {
     console.error("VERIFY OTP ERROR:", err);
-    return res.status(500).json({ success: false, msg: "Verification failed" });
+    return res.status(500).json({
+      success: false,
+      msg: "Verification failed"
+    });
   }
 };
