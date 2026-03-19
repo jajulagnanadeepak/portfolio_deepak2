@@ -29,7 +29,18 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || "*", // allow all for now (local)
+    origin: (origin, callback) => {
+      const allowedOrigins = (process.env.CORS_ORIGIN || "*")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -51,7 +62,7 @@ mongoose
    NODEMAILER
 ===================================================== */
 const SMTP_HOST = process.env.SMTP_HOST || "smtp.gmail.com";
-const SMTP_PORT = Number(process.env.SMTP_PORT || 465);
+const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_SECURE =
   process.env.SMTP_SECURE !== undefined
     ? process.env.SMTP_SECURE === "true"
@@ -60,14 +71,15 @@ const SMTP_REQUIRE_TLS =
   process.env.SMTP_REQUIRE_TLS !== undefined
     ? process.env.SMTP_REQUIRE_TLS === "true"
     : !SMTP_SECURE;
-const SMTP_FAMILY = Number(process.env.SMTP_FAMILY || 4);
 
-const transporter = nodemailer.createTransport({
+const smtpFamilyRaw = process.env.SMTP_FAMILY;
+const SMTP_FAMILY = smtpFamilyRaw ? Number(smtpFamilyRaw) : NaN;
+
+const transportConfig = {
   host: SMTP_HOST,
   port: SMTP_PORT,
   secure: SMTP_SECURE,
   requireTLS: SMTP_REQUIRE_TLS,
-  family: SMTP_FAMILY,
   connectionTimeout: 15000,
   greetingTimeout: 15000,
   socketTimeout: 25000,
@@ -77,15 +89,44 @@ const transporter = nodemailer.createTransport({
   },
   tls: {
     minVersion: "TLSv1.2",
-    rejectUnauthorized: false,
   },
-  pool: {
-    maxConnections: 1,
-    maxMessages: 5,
-    rateDelta: 2000,
-    rateLimit: 5,
-  },
-});
+};
+
+if (SMTP_FAMILY === 4 || SMTP_FAMILY === 6) {
+  transportConfig.family = SMTP_FAMILY;
+}
+
+const transporter = nodemailer.createTransport(transportConfig);
+
+const sendMailWithFallback = async (mailOptions) => {
+  try {
+    return await transporter.sendMail(mailOptions);
+  } catch (err) {
+    const isConnectionIssue =
+      err?.code === "ETIMEDOUT" || err?.code === "ESOCKET" || err?.command === "CONN";
+
+    if (!isConnectionIssue) {
+      throw err;
+    }
+
+    // Retry once with Gmail service mode, which can be more reliable in some hosting networks.
+    const fallbackTransporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 25000,
+      tls: {
+        minVersion: "TLSv1.2",
+      },
+    });
+
+    return fallbackTransporter.sendMail(mailOptions);
+  }
+};
 
 transporter.verify((err) => {
   if (err) {
@@ -126,7 +167,7 @@ app.post("/auth/request-otp", async (req, res) => {
 
     console.log("SAVED OTP:", admin);
 
-    await transporter.sendMail({
+    await sendMailWithFallback({
       from: `"Admin Login" <${process.env.EMAIL_USER}>`,
       to: normalizedEmail,
       subject: `Your OTP is ${otp}`,
@@ -222,7 +263,7 @@ app.post("/send-message", async (req, res) => {
       message: message.trim(),
     }).save();
 
-    await transporter.sendMail({
+    await sendMailWithFallback({
       from: `"Portfolio" <${process.env.EMAIL_USER}>`,
       to: contactReceiver,
       subject: `📩 ${subject}`,
@@ -231,7 +272,7 @@ app.post("/send-message", async (req, res) => {
 
     res.json({ success: true, msg: "Message sent" });
   } catch (err) {
-    console.error(err);
+    console.error("Contact mail error:", err);
     res.status(500).json({ success: false, msg: "Message failed" });
   }
 });
