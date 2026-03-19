@@ -41,7 +41,7 @@ export const sendMessage = async (req, res) => {
     `;
 
     const response = await resend.emails.send({
-      from: "onboarding@resend.dev",
+      from: "Deepak Portfolio <hello@deepak.dev>",
       to: contactReceiver,
       subject: resolvedSubject,
       html,
